@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>無限そば道</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@700&family=Zen+Old+Mincho:wght@700&display=swap" rel="stylesheet">
+
+<style>
+body{
+ margin:0;
+ background:black;
+ color:white;
+ font-family:'Noto Serif JP';
+ overflow:hidden;
+}
+
+/* タイトル */
+#titleScreen{
+ position:fixed;width:100%;height:100%;
+ display:flex;flex-direction:column;
+ justify-content:center;align-items:center;
+}
+#title{
+ font-size:64px;
+ color:gold;
+ font-family:'Zen Old Mincho';
+}
+.menuBtn{
+ width:260px;padding:16px;margin:10px;
+ font-size:22px;
+ background:linear-gradient(#fff4cc,gold);
+ border:none;border-radius:10px;
+}
+
+/* ゲーム */
+#game{
+ position:absolute;
+ left:50%;top:50%;
+ transform:translate(-50%,-50%);
+ width:420px;height:650px;
+ display:none;
+}
+
+/* レーン */
+.lane{position:absolute;width:140px;height:100%;}
+#lane1{left:0;background:url("lane_red.png") center/cover no-repeat,linear-gradient(#400,#100);}
+#lane2{left:140px;background:url("lane_blue.png") center/cover no-repeat,linear-gradient(#004,#001);}
+#lane3{left:280px;background:url("lane_green.png") center/cover no-repeat,linear-gradient(#040,#010);}
+
+/* ノーツ */
+.note{
+ position:absolute;
+ width:70px;
+ transform:translate(-50%,-50%);
+}
+
+/* 判定円 */
+.hit{
+ position:absolute;
+ top:560px;
+ width:90px;height:90px;
+ border-radius:50%;
+ border:3px solid white;
+ transform:translate(-50%,-50%);
+}
+.red{left:70px;}
+.blue{left:210px;}
+.green{left:350px;}
+
+/* UI */
+#ui{position:absolute;left:20px;top:40px;display:none;}
+#score{font-size:30px;color:gold;}
+#combo{font-size:50px;color:orange;}
+
+/* 判定 */
+#judge{
+ position:absolute;
+ left:50%;
+ transform:translateX(-50%);
+ bottom:150px;
+ font-size:48px;
+ opacity:0;
+ white-space:nowrap;
+}
+#judge.perfect{color:gold;}
+#judge.great{color:#44aaff;}
+#judge.miss{color:#ff4444;}
+
+.show{animation:judge 0.5s;}
+@keyframes judge{
+ 0%{opacity:1;}
+ 100%{opacity:0;transform:translate(-50%,-40px);}
+}
+
+/* リザルト */
+#result{
+ display:none;
+ position:fixed;
+ width:100%;height:100%;
+ text-align:center;
+ padding-top:120px;
+}
+.rankText{
+ font-size:60px;
+ font-family:'Zen Old Mincho';
+}
+
+/* ランキング */
+#ranking{
+ display:none;
+ position:fixed;
+ width:100%;height:100%;
+ background:radial-gradient(#1a0000,#000);
+ text-align:center;
+ padding-top:80px;
+}
+.rankTitle{
+ font-family:'Zen Old Mincho';
+ font-size:48px;
+ color:gold;
+ animation:titleIn 0.6s;
+}
+@keyframes titleIn{
+ from{transform:scale(1.5);opacity:0;}
+ to{transform:scale(1);opacity:1;}
+}
+.rankScroll{
+ display:inline-block;
+ padding:30px 50px;
+ background:linear-gradient(#f5e6c8,#e0c48f);
+ border:6px solid #5a2b00;
+ border-radius:12px;
+}
+.rankRow{
+ font-size:28px;
+ color:#2b1a00;
+ opacity:0;
+ transform:translateY(20px);
+}
+.rank1{
+ color:gold;
+ font-size:34px;
+ text-shadow:0 0 10px gold;
+}
+.showRank{
+ animation:rankIn 0.4s forwards;
+}
+@keyframes rankIn{
+ 0%{opacity:0;transform:scale(1.4) translateY(40px);}
+ 60%{transform:scale(0.9) translateY(-10px);}
+ 100%{opacity:1;transform:scale(1) translateY(0);}
+}
+</style>
+</head>
+
+<body>
+
+<div id="titleScreen">
+ <div id="title">無限そば道</div>
+ <button class="menuBtn" onclick="startGame(30)">30秒</button>
+ <button class="menuBtn" onclick="startGame(60)">60秒</button>
+ <button class="menuBtn" onclick="startGame(120)">120秒</button>
+ <button class="menuBtn" onclick="startInfinite()">終わりなき修行</button>
+ <button class="menuBtn" onclick="showRanking()">番付表</button>
+</div>
+
+<div id="ui">
+ <div>得点<div id="score">0</div></div>
+ <div>連打<div id="combo">0</div></div>
+</div>
+
+<div id="game">
+ <div id="lane1" class="lane"></div>
+ <div id="lane2" class="lane"></div>
+ <div id="lane3" class="lane"></div>
+
+ <div class="hit red"></div>
+ <div class="hit blue"></div>
+ <div class="hit green"></div>
+
+ <div id="judge"></div>
+</div>
+
+<div id="result">
+ <h1>結果</h1>
+ <div id="finalScore"></div>
+</div>
+
+<div id="ranking">
+ <div class="rankTitle">番付表</div>
+ <div class="rankScroll" id="rankList"></div>
+ <br>
+ <button onclick="location.reload()">戻る</button>
+</div>
+
+<script>
+let notes=[],score=0,combo=0,maxCombo=0;
+let running=false,isInfinite=false;
+let totalNotes=0,perfectCount=0,greatCount=0;
+
+const sePerfect=new Audio("perfect.mp3");
+const seGreat=new Audio("great.mp3");
+const seMiss=new Audio("miss.mp3");
+
+const game=document.getElementById("game");
+const scoreEl=document.getElementById("score");
+const comboEl=document.getElementById("combo");
+
+const laneX=[70,210,350];
+const HIT=560;
+
+/* スタート */
+function startGame(sec){
+ isInfinite=false;
+ startCommon();
+ setTimeout(endGame,sec*1000);
+}
+function startInfinite(){
+ isInfinite=true;
+ startCommon();
+}
+function startCommon(){
+ totalNotes=0;perfectCount=0;greatCount=0;
+ document.getElementById("titleScreen").style.display="none";
+ game.style.display="block";
+ document.getElementById("ui").style.display="block";
+ running=true;
+ loop();spawn();
+}
+
+/* ノーツ */
+function spawn(){
+ if(!running)return;
+ let lane=Math.floor(Math.random()*3);
+ let n=document.createElement("img");
+ n.src="soba.png";
+ n.className="note";
+ n.style.left=laneX[lane]+"px";
+ n.style.top="-80px";
+ game.appendChild(n);
+ notes.push({el:n,y:-80,lane});
+ totalNotes++;
+ setTimeout(spawn,350);
+}
+
+/* スピード */
+function getSpeed(){
+ return isInfinite ? 10 + combo*0.3 : 9 + combo*0.08;
+}
+
+/* ループ */
+function loop(){
+ if(!running)return;
+ let speed=getSpeed();
+
+ notes.forEach(n=>{
+  n.y+=speed;
+  n.el.style.top=n.y+"px";
+
+  if(n.y>650){
+   n.el.remove();
+   notes=notes.filter(x=>x!==n);
+   combo=0;
+   comboEl.innerText=combo;
+   showJudge("MISS");
+   seMiss.currentTime=0; seMiss.play();
+   if(isInfinite) endGame();
+  }
+ });
+
+ requestAnimationFrame(loop);
+}
+
+/* 判定表示 */
+function showJudge(result){
+ let text=result;
+ if(result==="PERFECT") text="極上";
+ if(result==="GREAT") text="良打";
+ if(result==="MISS") text="茹で過ぎ";
+
+ const judge=document.getElementById("judge");
+ judge.innerText=text;
+
+ judge.className="";
+ if(result==="PERFECT") judge.classList.add("perfect");
+ if(result==="GREAT") judge.classList.add("great");
+ if(result==="MISS") judge.classList.add("miss");
+
+ void judge.offsetWidth;
+ judge.classList.add("show");
+}
+
+/* 判定 */
+function hit(l){
+ let t=notes.find(n=>n.lane===l && Math.abs(n.y-HIT)<120);
+
+ if(!t){
+  combo=0;
+  comboEl.innerText=combo;
+  showJudge("MISS");
+  seMiss.currentTime=0; seMiss.play();
+  if(isInfinite) endGame();
+  return;
+ }
+
+ let diff=Math.abs(t.y-HIT);
+ let result;
+
+ if(diff<40){
+  result="PERFECT";
+  perfectCount++;
+  sePerfect.currentTime=0; sePerfect.play();
+ }else if(diff<90){
+  result="GREAT";
+  greatCount++;
+  seGreat.currentTime=0; seGreat.play();
+ }else{
+  result="MISS";
+  combo=0;
+  seMiss.currentTime=0; seMiss.play();
+ }
+
+ if(result!=="MISS"){
+  let add=Math.floor(300*(1+combo*0.05));
+  score+=add;
+  combo++;
+  if(combo>maxCombo) maxCombo=combo;
+
+  t.el.remove();
+  notes=notes.filter(n=>n!==t);
+ }
+
+ scoreEl.innerText=score;
+ comboEl.innerText=combo;
+
+ showJudge(result);
+}
+
+/* ランク（修正版） */
+function getRank(){
+ let rate=(perfectCount + greatCount*0.7)/totalNotes;
+
+ if(rate===1)return "越前極";
+ if(rate>=0.95)return "名人";
+ if(rate>=0.9)return "職人";
+ if(rate>=0.8)return "見習い";
+ return "修行中";
+}
+
+/* 終了 */
+function endGame(){
+ running=false;
+ game.style.display="none";
+ document.getElementById("ui").style.display="none";
+
+ const result=document.getElementById("result");
+ result.style.display="block";
+
+ if(isInfinite){
+  document.getElementById("finalScore").innerHTML=`
+   スコア:${score}<br>
+   最大連打:${maxCombo}<br><br>
+   名前：<input id="nameInput"><br><br>
+   <button onclick="save()">登録</button>
+   <button onclick="location.reload()">戻る</button>
+  `;
+ }else{
+  let r=getRank();
+  document.getElementById("finalScore").innerHTML=`
+   スコア:${score}<br>
+   <div class="rankText">${r}</div><br>
+   <button onclick="location.reload()">戻る</button>
+  `;
+ }
+}
+
+/* 保存 */
+function save(){
+ let name=document.getElementById("nameInput").value || "名無し";
+ let data=JSON.parse(localStorage.getItem("rank")||"[]");
+
+ let existing=data.find(d=>d.name===name);
+ if(existing){
+  if(score>existing.score) existing.score=score;
+ }else{
+  data.push({name,score});
+ }
+
+ data.sort((a,b)=>b.score-a.score);
+ localStorage.setItem("rank",JSON.stringify(data.slice(0,5)));
+
+ alert("登録完了！");
+ showRanking();
+}
+
+/* ランキング表示 */
+function showRanking(){
+ document.getElementById("titleScreen").style.display="none";
+ document.getElementById("ranking").style.display="block";
+
+ let data=JSON.parse(localStorage.getItem("rank")||"[]");
+ let list=document.getElementById("rankList");
+
+ list.innerHTML=data.map((d,i)=>`
+  <div class="rankRow ${i===0?"rank1":""}">
+   ${i+1}位　${d.name}　${d.score}
+  </div>
+ `).join("");
+
+ let rows=document.querySelectorAll(".rankRow");
+ rows.forEach((row,i)=>{
+  setTimeout(()=>row.classList.add("showRank"), i*150);
+ });
+}
+
+/* 操作 */
+document.addEventListener("keydown",e=>{
+ if(!running)return;
+ if(e.key==="a") hit(0);
+ if(e.key==="s") hit(1);
+ if(e.key==="l") hit(2);
+});
+</script>
+
+</body>
+</html>
