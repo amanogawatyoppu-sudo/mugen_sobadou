@@ -44,9 +44,9 @@ body{
 
 /* レーン */
 .lane{position:absolute;width:140px;height:100%;}
-#lane1{left:0;background:url("lane_red.png") center/cover no-repeat,linear-gradient(#400,#100);}
-#lane2{left:140px;background:url("lane_blue.png") center/cover no-repeat,linear-gradient(#004,#001);}
-#lane3{left:280px;background:url("lane_green.png") center/cover no-repeat,linear-gradient(#040,#010);}
+#lane1{left:0;background:url("lane_red.png") center/cover no-repeat;}
+#lane2{left:140px;background:url("lane_blue.png") center/cover no-repeat;}
+#lane3{left:280px;background:url("lane_green.png") center/cover no-repeat;}
 
 /* ノーツ */
 .note{
@@ -69,7 +69,11 @@ body{
 .green{left:350px;}
 
 /* UI */
-#ui{position:absolute;left:20px;top:40px;display:none;}
+#ui{
+ position:absolute;
+ left:20px;top:40px;
+ display:none;
+}
 #score{font-size:30px;color:gold;}
 #combo{font-size:50px;color:orange;}
 
@@ -83,10 +87,6 @@ body{
  opacity:0;
  white-space:nowrap;
 }
-#judge.perfect{color:gold;}
-#judge.great{color:#44aaff;}
-#judge.miss{color:#ff4444;}
-
 .show{animation:judge 0.5s;}
 @keyframes judge{
  0%{opacity:1;}
@@ -115,16 +115,6 @@ body{
  text-align:center;
  padding-top:80px;
 }
-.rankTitle{
- font-family:'Zen Old Mincho';
- font-size:48px;
- color:gold;
- animation:titleIn 0.6s;
-}
-@keyframes titleIn{
- from{transform:scale(1.5);opacity:0;}
- to{transform:scale(1);opacity:1;}
-}
 .rankScroll{
  display:inline-block;
  padding:30px 50px;
@@ -135,21 +125,21 @@ body{
 .rankRow{
  font-size:28px;
  color:#2b1a00;
+}
+.rank1{color:gold;font-size:32px;}
+
+/* フラッシュ */
+#flash{
+ position:fixed;
+ width:100%;height:100%;
+ background:white;
  opacity:0;
- transform:translateY(20px);
+ pointer-events:none;
 }
-.rank1{
- color:gold;
- font-size:34px;
- text-shadow:0 0 10px gold;
-}
-.showRank{
- animation:rankIn 0.4s forwards;
-}
-@keyframes rankIn{
- 0%{opacity:0;transform:scale(1.4) translateY(40px);}
- 60%{transform:scale(0.9) translateY(-10px);}
- 100%{opacity:1;transform:scale(1) translateY(0);}
+.flashOn{animation:flashAnim 0.5s;}
+@keyframes flashAnim{
+ 0%{opacity:1;}
+ 100%{opacity:0;}
 }
 </style>
 </head>
@@ -161,8 +151,8 @@ body{
  <button class="menuBtn" onclick="startGame(30)">30秒</button>
  <button class="menuBtn" onclick="startGame(60)">60秒</button>
  <button class="menuBtn" onclick="startGame(120)">120秒</button>
- <button class="menuBtn" onclick="startInfinite()">終わりなき修行</button>
- <button class="menuBtn" onclick="showRanking()">番付表</button>
+ <button class="menuBtn" onclick="startInfinite()">無限</button>
+ <button class="menuBtn" onclick="showRanking()">ランキング</button>
 </div>
 
 <div id="ui">
@@ -188,16 +178,29 @@ body{
 </div>
 
 <div id="ranking">
- <div class="rankTitle">番付表</div>
  <div class="rankScroll" id="rankList"></div>
  <br>
  <button onclick="location.reload()">戻る</button>
 </div>
 
+<div id="flash"></div>
+
+<!-- Supabase -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <script>
+const SUPABASE_URL = "ここにURL";
+const SUPABASE_KEY = "ここにキー";
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
 let notes=[],score=0,combo=0,maxCombo=0;
 let running=false,isInfinite=false;
-let totalNotes=0,perfectCount=0,greatCount=0;
+
+let perfectCount=0, greatCount=0, missCount=0;
+let isAllPerfect=true;
+
+const laneX=[70,210,350];
+const HIT=560;
 
 const sePerfect=new Audio("perfect.mp3");
 const seGreat=new Audio("great.mp3");
@@ -207,10 +210,6 @@ const game=document.getElementById("game");
 const scoreEl=document.getElementById("score");
 const comboEl=document.getElementById("combo");
 
-const laneX=[70,210,350];
-const HIT=560;
-
-/* スタート */
 function startGame(sec){
  isInfinite=false;
  startCommon();
@@ -221,15 +220,18 @@ function startInfinite(){
  startCommon();
 }
 function startCommon(){
- totalNotes=0;perfectCount=0;greatCount=0;
- document.getElementById("titleScreen").style.display="none";
+ notes=[];score=0;combo=0;maxCombo=0;
+ perfectCount=0;greatCount=0;missCount=0;
+ isAllPerfect=true;
+
+ titleScreen.style.display="none";
  game.style.display="block";
- document.getElementById("ui").style.display="block";
+ ui.style.display="block";
+
  running=true;
  loop();spawn();
 }
 
-/* ノーツ */
 function spawn(){
  if(!running)return;
  let lane=Math.floor(Math.random()*3);
@@ -240,64 +242,25 @@ function spawn(){
  n.style.top="-80px";
  game.appendChild(n);
  notes.push({el:n,y:-80,lane});
- totalNotes++;
  setTimeout(spawn,350);
 }
 
-/* スピード */
-function getSpeed(){
- return isInfinite ? 10 + combo*0.3 : 9 + combo*0.08;
-}
-
-/* ループ */
 function loop(){
  if(!running)return;
- let speed=getSpeed();
-
  notes.forEach(n=>{
-  n.y+=speed;
+  n.y+=9+combo*0.08;
   n.el.style.top=n.y+"px";
-
-  if(n.y>650){
-   n.el.remove();
-   notes=notes.filter(x=>x!==n);
-   combo=0;
-   comboEl.innerText=combo;
-   showJudge("MISS");
-   seMiss.currentTime=0; seMiss.play();
-   if(isInfinite) endGame();
-  }
  });
-
  requestAnimationFrame(loop);
 }
 
-/* 判定表示 */
-function showJudge(result){
- let text=result;
- if(result==="PERFECT") text="極上";
- if(result==="GREAT") text="良打";
- if(result==="MISS") text="茹で過ぎ";
-
- const judge=document.getElementById("judge");
- judge.innerText=text;
-
- judge.className="";
- if(result==="PERFECT") judge.classList.add("perfect");
- if(result==="GREAT") judge.classList.add("great");
- if(result==="MISS") judge.classList.add("miss");
-
- void judge.offsetWidth;
- judge.classList.add("show");
-}
-
-/* 判定 */
 function hit(l){
  let t=notes.find(n=>n.lane===l && Math.abs(n.y-HIT)<120);
 
  if(!t){
   combo=0;
-  comboEl.innerText=combo;
+  missCount++;
+  isAllPerfect=false;
   showJudge("MISS");
   seMiss.currentTime=0; seMiss.play();
   if(isInfinite) endGame();
@@ -314,16 +277,18 @@ function hit(l){
  }else if(diff<90){
   result="GREAT";
   greatCount++;
+  isAllPerfect=false;
   seGreat.currentTime=0; seGreat.play();
  }else{
   result="MISS";
+  missCount++;
+  isAllPerfect=false;
   combo=0;
   seMiss.currentTime=0; seMiss.play();
  }
 
  if(result!=="MISS"){
-  let add=Math.floor(300*(1+combo*0.05));
-  score+=add;
+  score+=300*(1+combo*0.05);
   combo++;
   if(combo>maxCombo) maxCombo=combo;
 
@@ -331,90 +296,82 @@ function hit(l){
   notes=notes.filter(n=>n!==t);
  }
 
- scoreEl.innerText=score;
+ scoreEl.innerText=Math.floor(score);
  comboEl.innerText=combo;
 
  showJudge(result);
 }
 
-/* ランク（修正版） */
-function getRank(){
- let rate=(perfectCount + greatCount*0.7)/totalNotes;
-
- if(rate===1)return "越前極";
- if(rate>=0.95)return "名人";
- if(rate>=0.9)return "職人";
- if(rate>=0.8)return "見習い";
- return "修行中";
+function showJudge(r){
+ const judge=document.getElementById("judge");
+ judge.innerText = r==="PERFECT"?"極上":r==="GREAT"?"良打":"茹で過ぎ";
+ judge.className="show";
 }
 
-/* 終了 */
+function getRank(){
+ if(isAllPerfect && perfectCount>0) return "越前極";
+
+ let judged=perfectCount+greatCount+missCount;
+ if(judged===0) return "C";
+
+ let rate=perfectCount/judged;
+
+ if(rate>=0.95)return "SS";
+ if(rate>=0.9)return "S";
+ if(rate>=0.8)return "A";
+ if(rate>=0.7)return "B";
+ return "C";
+}
+
 function endGame(){
  running=false;
  game.style.display="none";
- document.getElementById("ui").style.display="none";
-
- const result=document.getElementById("result");
+ ui.style.display="none";
  result.style.display="block";
 
- if(isInfinite){
-  document.getElementById("finalScore").innerHTML=`
-   スコア:${score}<br>
-   最大連打:${maxCombo}<br><br>
-   名前：<input id="nameInput"><br><br>
-   <button onclick="save()">登録</button>
-   <button onclick="location.reload()">戻る</button>
-  `;
- }else{
-  let r=getRank();
-  document.getElementById("finalScore").innerHTML=`
-   スコア:${score}<br>
-   <div class="rankText">${r}</div><br>
-   <button onclick="location.reload()">戻る</button>
-  `;
+ let r=getRank();
+
+ if(r==="越前極"){
+  flash.classList.add("flashOn");
  }
+
+ finalScore.innerHTML=`
+ スコア:${Math.floor(score)}<br>
+ 最大連打:${maxCombo}<br>
+ ランク:${r}<br>
+ <button onclick="submitScore()">登録</button>
+ <button onclick="location.reload()">戻る</button>
+ `;
 }
 
-/* 保存 */
-function save(){
- let name=document.getElementById("nameInput").value || "名無し";
- let data=JSON.parse(localStorage.getItem("rank")||"[]");
+async function submitScore(){
+ let name=prompt("名前を入力");
+ if(!name) return;
 
- let existing=data.find(d=>d.name===name);
- if(existing){
-  if(score>existing.score) existing.score=score;
- }else{
-  data.push({name,score});
- }
-
- data.sort((a,b)=>b.score-a.score);
- localStorage.setItem("rank",JSON.stringify(data.slice(0,5)));
+ await supabase.from("scores").insert([
+  {name:name,score:Math.floor(score)}
+ ]);
 
  alert("登録完了！");
- showRanking();
 }
 
-/* ランキング表示 */
-function showRanking(){
- document.getElementById("titleScreen").style.display="none";
- document.getElementById("ranking").style.display="block";
+async function showRanking(){
+ titleScreen.style.display="none";
+ ranking.style.display="block";
 
- let data=JSON.parse(localStorage.getItem("rank")||"[]");
- let list=document.getElementById("rankList");
+ let { data } = await supabase
+  .from("scores")
+  .select("*")
+  .order("score",{ascending:false})
+  .limit(5);
 
- list.innerHTML=data.map((d,i)=>`
+ rankList.innerHTML=data.map((d,i)=>`
   <div class="rankRow ${i===0?"rank1":""}">
-   ${i+1}位　${d.name}　${d.score}
+   ${i+1}位 ${d.name} ${d.score}
   </div>
  `).join("");
-
- let rows=document.querySelectorAll(".rankRow");
- rows.forEach((row,i)=>{
-  setTimeout(()=>row.classList.add("showRank"), i*150);
- });
 }
 
-/* 操作 */
 document.addEventListener("keydown",e=>{
  if(!running)return;
  if(e.key==="a") hit(0);
