@@ -20,6 +20,7 @@ body{
  position:fixed;width:100%;height:100%;
  display:flex;flex-direction:column;
  justify-content:center;align-items:center;
+ z-index:10;
 }
 #title{
  font-size:64px;
@@ -40,6 +41,7 @@ body{
  transform:translate(-50%,-50%);
  width:420px;height:650px;
  display:none;
+ z-index:1;
 }
 
 /* レーン */
@@ -73,6 +75,7 @@ body{
  position:absolute;
  left:20px;top:40px;
  display:none;
+ z-index:5;
 }
 #score{font-size:30px;color:gold;}
 #combo{font-size:50px;color:orange;}
@@ -100,10 +103,7 @@ body{
  width:100%;height:100%;
  text-align:center;
  padding-top:120px;
-}
-.rankText{
- font-size:60px;
- font-family:'Zen Old Mincho';
+ z-index:20;
 }
 
 /* ランキング */
@@ -114,6 +114,7 @@ body{
  background:radial-gradient(#1a0000,#000);
  text-align:center;
  padding-top:80px;
+ z-index:20;
 }
 .rankScroll{
  display:inline-block;
@@ -128,13 +129,14 @@ body{
 }
 .rank1{color:gold;font-size:32px;}
 
-/* フラッシュ */
+/* フラッシュ（クリック邪魔しない） */
 #flash{
  position:fixed;
  width:100%;height:100%;
  background:white;
  opacity:0;
  pointer-events:none;
+ z-index:0;
 }
 .flashOn{animation:flashAnim 0.5s;}
 @keyframes flashAnim{
@@ -189,9 +191,9 @@ body{
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
-const SUPABASE_URL = "ここにURL";
-const SUPABASE_KEY = "ここにキー";
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const SUPABASE_URL="ここにURL";
+const SUPABASE_KEY="ここにキー";
+const supabase=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
 let notes=[],score=0,combo=0,maxCombo=0;
 let running=false,isInfinite=false;
@@ -201,10 +203,6 @@ let isAllPerfect=true;
 
 const laneX=[70,210,350];
 const HIT=560;
-
-const sePerfect=new Audio("perfect.mp3");
-const seGreat=new Audio("great.mp3");
-const seMiss=new Audio("miss.mp3");
 
 const game=document.getElementById("game");
 const scoreEl=document.getElementById("score");
@@ -261,61 +259,38 @@ function hit(l){
   combo=0;
   missCount++;
   isAllPerfect=false;
-  showJudge("MISS");
-  seMiss.currentTime=0; seMiss.play();
-  if(isInfinite) endGame();
   return;
  }
 
  let diff=Math.abs(t.y-HIT);
- let result;
 
  if(diff<40){
-  result="PERFECT";
   perfectCount++;
-  sePerfect.currentTime=0; sePerfect.play();
  }else if(diff<90){
-  result="GREAT";
   greatCount++;
   isAllPerfect=false;
-  seGreat.currentTime=0; seGreat.play();
  }else{
-  result="MISS";
   missCount++;
   isAllPerfect=false;
   combo=0;
-  seMiss.currentTime=0; seMiss.play();
  }
 
- if(result!=="MISS"){
-  score+=300*(1+combo*0.05);
-  combo++;
-  if(combo>maxCombo) maxCombo=combo;
+ score+=300*(1+combo*0.05);
+ combo++;
+ if(combo>maxCombo) maxCombo=combo;
 
-  t.el.remove();
-  notes=notes.filter(n=>n!==t);
- }
+ t.el.remove();
+ notes=notes.filter(n=>n!==t);
 
  scoreEl.innerText=Math.floor(score);
  comboEl.innerText=combo;
-
- showJudge(result);
-}
-
-function showJudge(r){
- const judge=document.getElementById("judge");
- judge.innerText = r==="PERFECT"?"極上":r==="GREAT"?"良打":"茹で過ぎ";
- judge.className="show";
 }
 
 function getRank(){
  if(isAllPerfect && perfectCount>0) return "越前極";
-
  let judged=perfectCount+greatCount+missCount;
  if(judged===0) return "C";
-
  let rate=perfectCount/judged;
-
  if(rate>=0.95)return "SS";
  if(rate>=0.9)return "S";
  if(rate>=0.8)return "A";
@@ -331,10 +306,6 @@ function endGame(){
 
  let r=getRank();
 
- if(r==="越前極"){
-  flash.classList.add("flashOn");
- }
-
  finalScore.innerHTML=`
  スコア:${Math.floor(score)}<br>
  最大連打:${maxCombo}<br>
@@ -345,8 +316,8 @@ function endGame(){
 }
 
 async function submitScore(){
- let name=prompt("名前を入力");
- if(!name) return;
+ let name=prompt("名前入力");
+ if(!name)return;
 
  await supabase.from("scores").insert([
   {name:name,score:Math.floor(score)}
@@ -372,11 +343,20 @@ async function showRanking(){
  `).join("");
 }
 
+/* キー + タッチ対応 */
 document.addEventListener("keydown",e=>{
  if(!running)return;
  if(e.key==="a") hit(0);
  if(e.key==="s") hit(1);
  if(e.key==="l") hit(2);
+});
+
+document.addEventListener("touchstart",e=>{
+ if(!running)return;
+ let x=e.touches[0].clientX;
+ if(x<window.innerWidth/3) hit(0);
+ else if(x<window.innerWidth*2/3) hit(1);
+ else hit(2);
 });
 </script>
 
