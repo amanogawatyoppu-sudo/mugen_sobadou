@@ -4,8 +4,6 @@
 <meta charset="UTF-8">
 <title>無限そば道</title>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
 <style>
 body{
  margin:0;
@@ -21,14 +19,10 @@ body{
  display:flex;flex-direction:column;
  justify-content:center;align-items:center;
 }
-#title{
- font-size:60px;
- color:gold;
-}
 .menuBtn{
  width:260px;padding:16px;margin:10px;
  font-size:22px;
- background:linear-gradient(#fff4cc,gold);
+ background:gold;
  border:none;border-radius:10px;
  cursor:pointer;
 }
@@ -51,7 +45,7 @@ body{
  transform:translate(-50%,-50%);
 }
 
-/* 判定 */
+/* 判定ライン */
 .hit{
  position:absolute;
  top:560px;
@@ -87,7 +81,7 @@ body{
 <body>
 
 <div id="titleScreen">
- <div id="title">無限そば道</div>
+ <h1>無限そば道</h1>
  <button class="menuBtn" onclick="startGame(30)">30秒</button>
  <button class="menuBtn" onclick="startGame(60)">60秒</button>
  <button class="menuBtn" onclick="startGame(120)">120秒</button>
@@ -108,43 +102,23 @@ body{
 <div id="result"></div>
 
 <script>
-// ==========================
-// ✅ Supabase設定（ここだけ変える）
-// ==========================
-const SUPABASE_URL = "ここにURL";
-const SUPABASE_KEY = "ここにanonキー";
-
-let supabase = null;
-if(SUPABASE_URL !== "ここにURL"){
- supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-}
-
-// ==========================
-// ゲーム変数
-// ==========================
-let notes=[];
-let score=0;
-let combo=0;
-let running=false;
-let isInfinite=false;
+// ===== 変数 =====
+let notes=[],score=0,combo=0,maxCombo=0;
+let running=false,isInfinite=false;
 
 const laneX=[70,210,350];
 const HIT=560;
 
-// ==========================
-// スタート
-// ==========================
+// ===== スタート =====
 function startGame(sec){
  isInfinite=false;
  startCommon();
  setTimeout(endGame,sec*1000);
 }
-
 function startInfinite(){
  isInfinite=true;
  startCommon();
 }
-
 function startCommon(){
  document.getElementById("titleScreen").style.display="none";
  document.getElementById("game").style.display="block";
@@ -153,15 +127,14 @@ function startCommon(){
  notes=[];
  score=0;
  combo=0;
+ maxCombo=0;
  running=true;
 
  loop();
  spawn();
 }
 
-// ==========================
-// ノーツ生成
-// ==========================
+// ===== ノーツ生成 =====
 function spawn(){
  if(!running)return;
 
@@ -178,23 +151,19 @@ function spawn(){
  setTimeout(spawn,400);
 }
 
-// ==========================
-// ループ
-// ==========================
+// ===== ループ =====
 function loop(){
  if(!running)return;
 
  notes.forEach(n=>{
-  n.y+=8;
+  n.y+=8+combo*0.05;
   n.el.style.top=n.y+"px";
  });
 
  requestAnimationFrame(loop);
 }
 
-// ==========================
-// 判定
-// ==========================
+// ===== 判定 =====
 function hit(l){
  let target = notes.find(n=>n.lane===l && Math.abs(n.y-HIT)<80);
 
@@ -204,49 +173,34 @@ function hit(l){
   return;
  }
 
- score+=100;
+ score+=100*(1+combo*0.05);
  combo++;
+ if(combo>maxCombo) maxCombo=combo;
 
  target.el.remove();
  notes = notes.filter(n=>n!==target);
 
- document.getElementById("score").innerText=score;
+ document.getElementById("score").innerText=Math.floor(score);
  document.getElementById("combo").innerText=combo;
 }
 
-// ==========================
-// 終了
-// ==========================
-async function endGame(){
+// ===== 終了 =====
+function endGame(){
  running=false;
 
  document.getElementById("game").style.display="none";
  document.getElementById("ui").style.display="none";
 
- let name = prompt("名前を入力") || "名無し";
-
- // 🔥 Supabase保存
- if(supabase){
-  try{
-   await supabase.from("scores").insert([
-    { name: name, score: score }
-   ]);
-  }catch(e){
-   console.log("保存失敗",e);
-  }
- }
-
  document.getElementById("result").style.display="block";
  document.getElementById("result").innerHTML = `
  <h1>結果</h1>
- スコア:${score}<br><br>
+ スコア:${Math.floor(score)}<br>
+ 最大コンボ:${maxCombo}<br><br>
  <button onclick="location.reload()">戻る</button>
  `;
 }
 
-// ==========================
-// 操作
-// ==========================
+// ===== 操作 =====
 document.addEventListener("keydown",e=>{
  if(!running)return;
 
