@@ -15,12 +15,24 @@ body{
  overflow:hidden;
 }
 
+/* ===== 画面共通（最重要修正） ===== */
+#titleScreen,#result,#ranking{
+ position:fixed;
+ width:100%;
+ height:100%;
+ z-index:10;
+}
+
+#game{
+ z-index:1;
+}
+
 /* タイトル */
 #titleScreen{
- position:fixed;width:100%;height:100%;
- display:flex;flex-direction:column;
- justify-content:center;align-items:center;
- z-index:10;
+ display:flex;
+ flex-direction:column;
+ justify-content:center;
+ align-items:center;
 }
 #title{
  font-size:64px;
@@ -32,6 +44,7 @@ body{
  font-size:22px;
  background:linear-gradient(#fff4cc,gold);
  border:none;border-radius:10px;
+ cursor:pointer;
 }
 
 /* ゲーム */
@@ -41,7 +54,6 @@ body{
  transform:translate(-50%,-50%);
  width:420px;height:650px;
  display:none;
- z-index:1;
 }
 
 /* レーン */
@@ -99,22 +111,16 @@ body{
 /* リザルト */
 #result{
  display:none;
- position:fixed;
- width:100%;height:100%;
  text-align:center;
  padding-top:120px;
- z-index:20;
 }
 
 /* ランキング */
 #ranking{
  display:none;
- position:fixed;
- width:100%;height:100%;
  background:radial-gradient(#1a0000,#000);
  text-align:center;
  padding-top:80px;
- z-index:20;
 }
 .rankScroll{
  display:inline-block;
@@ -129,7 +135,7 @@ body{
 }
 .rank1{color:gold;font-size:32px;}
 
-/* フラッシュ（クリック邪魔しない） */
+/* フラッシュ */
 #flash{
  position:fixed;
  width:100%;height:100%;
@@ -187,7 +193,6 @@ body{
 
 <div id="flash"></div>
 
-<!-- Supabase -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
@@ -208,6 +213,7 @@ const game=document.getElementById("game");
 const scoreEl=document.getElementById("score");
 const comboEl=document.getElementById("combo");
 
+/* ===== スタート ===== */
 function startGame(sec){
  isInfinite=false;
  startCommon();
@@ -223,6 +229,9 @@ function startCommon(){
  isAllPerfect=true;
 
  titleScreen.style.display="none";
+ result.style.display="none";
+ ranking.style.display="none";
+
  game.style.display="block";
  ui.style.display="block";
 
@@ -230,6 +239,7 @@ function startCommon(){
  loop();spawn();
 }
 
+/* ノーツ */
 function spawn(){
  if(!running)return;
  let lane=Math.floor(Math.random()*3);
@@ -243,6 +253,7 @@ function spawn(){
  setTimeout(spawn,350);
 }
 
+/* ループ */
 function loop(){
  if(!running)return;
  notes.forEach(n=>{
@@ -252,30 +263,12 @@ function loop(){
  requestAnimationFrame(loop);
 }
 
+/* 判定 */
 function hit(l){
  let t=notes.find(n=>n.lane===l && Math.abs(n.y-HIT)<120);
+ if(!t)return;
 
- if(!t){
-  combo=0;
-  missCount++;
-  isAllPerfect=false;
-  return;
- }
-
- let diff=Math.abs(t.y-HIT);
-
- if(diff<40){
-  perfectCount++;
- }else if(diff<90){
-  greatCount++;
-  isAllPerfect=false;
- }else{
-  missCount++;
-  isAllPerfect=false;
-  combo=0;
- }
-
- score+=300*(1+combo*0.05);
+ score+=300;
  combo++;
  if(combo>maxCombo) maxCombo=combo;
 
@@ -286,35 +279,24 @@ function hit(l){
  comboEl.innerText=combo;
 }
 
-function getRank(){
- if(isAllPerfect && perfectCount>0) return "越前極";
- let judged=perfectCount+greatCount+missCount;
- if(judged===0) return "C";
- let rate=perfectCount/judged;
- if(rate>=0.95)return "SS";
- if(rate>=0.9)return "S";
- if(rate>=0.8)return "A";
- if(rate>=0.7)return "B";
- return "C";
-}
-
+/* 終了 */
 function endGame(){
  running=false;
+
  game.style.display="none";
  ui.style.display="none";
- result.style.display="block";
 
- let r=getRank();
+ result.style.display="block";
 
  finalScore.innerHTML=`
  スコア:${Math.floor(score)}<br>
  最大連打:${maxCombo}<br>
- ランク:${r}<br>
  <button onclick="submitScore()">登録</button>
  <button onclick="location.reload()">戻る</button>
  `;
 }
 
+/* スコア送信 */
 async function submitScore(){
  let name=prompt("名前入力");
  if(!name)return;
@@ -326,8 +308,11 @@ async function submitScore(){
  alert("登録完了！");
 }
 
+/* ランキング */
 async function showRanking(){
  titleScreen.style.display="none";
+ result.style.display="none";
+
  ranking.style.display="block";
 
  let { data } = await supabase
@@ -343,20 +328,12 @@ async function showRanking(){
  `).join("");
 }
 
-/* キー + タッチ対応 */
+/* 操作 */
 document.addEventListener("keydown",e=>{
  if(!running)return;
  if(e.key==="a") hit(0);
  if(e.key==="s") hit(1);
  if(e.key==="l") hit(2);
-});
-
-document.addEventListener("touchstart",e=>{
- if(!running)return;
- let x=e.touches[0].clientX;
- if(x<window.innerWidth/3) hit(0);
- else if(x<window.innerWidth*2/3) hit(1);
- else hit(2);
 });
 </script>
 
