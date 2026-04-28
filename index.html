@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <title>無限そば道</title>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <style>
 body{
  margin:0;
@@ -20,14 +22,15 @@ body{
  justify-content:center;align-items:center;
 }
 #title{
- font-size:64px;
+ font-size:60px;
  color:gold;
 }
 .menuBtn{
  width:260px;padding:16px;margin:10px;
  font-size:22px;
- background:gold;
+ background:linear-gradient(#fff4cc,gold);
  border:none;border-radius:10px;
+ cursor:pointer;
 }
 
 /* ゲーム */
@@ -40,6 +43,15 @@ body{
  background:#111;
 }
 
+.note{
+ position:absolute;
+ width:60px;height:60px;
+ background:white;
+ border-radius:10px;
+ transform:translate(-50%,-50%);
+}
+
+/* 判定 */
 .hit{
  position:absolute;
  top:560px;
@@ -52,10 +64,22 @@ body{
 .blue{left:210px;}
 .green{left:350px;}
 
+/* UI */
 #ui{
  position:absolute;
  left:20px;top:40px;
  display:none;
+}
+#score{font-size:30px;color:gold;}
+#combo{font-size:40px;color:orange;}
+
+/* リザルト */
+#result{
+ display:none;
+ position:fixed;
+ width:100%;height:100%;
+ text-align:center;
+ padding-top:120px;
 }
 </style>
 </head>
@@ -68,7 +92,6 @@ body{
  <button class="menuBtn" onclick="startGame(60)">60秒</button>
  <button class="menuBtn" onclick="startGame(120)">120秒</button>
  <button class="menuBtn" onclick="startInfinite()">無限</button>
- <button class="menuBtn" onclick="showRanking()">ランキング</button>
 </div>
 
 <div id="game">
@@ -78,58 +101,158 @@ body{
 </div>
 
 <div id="ui">
- スコア: <span id="score">0</span>
+ <div>スコア:<span id="score">0</span></div>
+ <div>コンボ:<span id="combo">0</span></div>
 </div>
 
+<div id="result"></div>
+
 <script>
-// ===== ここ重要 =====
+// ==========================
+// ✅ Supabase設定（ここだけ変える）
+// ==========================
+const SUPABASE_URL = "ここにURL";
+const SUPABASE_KEY = "ここにanonキー";
 
-// 変数
-let running=false;
+let supabase = null;
+if(SUPABASE_URL !== "ここにURL"){
+ supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+}
+
+// ==========================
+// ゲーム変数
+// ==========================
+let notes=[];
 let score=0;
+let combo=0;
+let running=false;
+let isInfinite=false;
 
+const laneX=[70,210,350];
+const HIT=560;
+
+// ==========================
 // スタート
+// ==========================
 function startGame(sec){
- console.log("startGame動いた"); // ←確認用
+ isInfinite=false;
  startCommon();
  setTimeout(endGame,sec*1000);
 }
 
 function startInfinite(){
- console.log("startInfinite動いた");
+ isInfinite=true;
  startCommon();
 }
 
-// 共通
 function startCommon(){
  document.getElementById("titleScreen").style.display="none";
  document.getElementById("game").style.display="block";
  document.getElementById("ui").style.display="block";
 
- running=true;
+ notes=[];
  score=0;
+ combo=0;
+ running=true;
+
+ loop();
+ spawn();
 }
 
+// ==========================
+// ノーツ生成
+// ==========================
+function spawn(){
+ if(!running)return;
+
+ let lane=Math.floor(Math.random()*3);
+ let n=document.createElement("div");
+ n.className="note";
+ n.style.left=laneX[lane]+"px";
+ n.style.top="-50px";
+
+ document.getElementById("game").appendChild(n);
+
+ notes.push({el:n,y:-50,lane});
+
+ setTimeout(spawn,400);
+}
+
+// ==========================
+// ループ
+// ==========================
+function loop(){
+ if(!running)return;
+
+ notes.forEach(n=>{
+  n.y+=8;
+  n.el.style.top=n.y+"px";
+ });
+
+ requestAnimationFrame(loop);
+}
+
+// ==========================
+// 判定
+// ==========================
+function hit(l){
+ let target = notes.find(n=>n.lane===l && Math.abs(n.y-HIT)<80);
+
+ if(!target){
+  combo=0;
+  document.getElementById("combo").innerText=combo;
+  return;
+ }
+
+ score+=100;
+ combo++;
+
+ target.el.remove();
+ notes = notes.filter(n=>n!==target);
+
+ document.getElementById("score").innerText=score;
+ document.getElementById("combo").innerText=combo;
+}
+
+// ==========================
 // 終了
-function endGame(){
+// ==========================
+async function endGame(){
  running=false;
- alert("終了 スコア:"+score);
- location.reload();
+
+ document.getElementById("game").style.display="none";
+ document.getElementById("ui").style.display="none";
+
+ let name = prompt("名前を入力") || "名無し";
+
+ // 🔥 Supabase保存
+ if(supabase){
+  try{
+   await supabase.from("scores").insert([
+    { name: name, score: score }
+   ]);
+  }catch(e){
+   console.log("保存失敗",e);
+  }
+ }
+
+ document.getElementById("result").style.display="block";
+ document.getElementById("result").innerHTML = `
+ <h1>結果</h1>
+ スコア:${score}<br><br>
+ <button onclick="location.reload()">戻る</button>
+ `;
 }
 
-// ランキング
-function showRanking(){
- alert("ランキング（まだ未実装）");
-}
-
-// キー操作
+// ==========================
+// 操作
+// ==========================
 document.addEventListener("keydown",e=>{
  if(!running)return;
 
- if(e.key==="a"||e.key==="s"||e.key==="l"){
-  score+=100;
-  document.getElementById("score").innerText=score;
- }
+ if(e.key==="a") hit(0);
+ if(e.key==="s") hit(1);
+ if(e.key==="l") hit(2);
 });
 </script>
 
