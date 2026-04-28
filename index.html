@@ -4,39 +4,30 @@
 <meta charset="UTF-8">
 <title>無限そば道</title>
 
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@700&family=Zen+Old+Mincho:wght@700&display=swap" rel="stylesheet">
-
 <style>
 body{
  margin:0;
  background:black;
  color:white;
- font-family:'Noto Serif JP';
+ font-family:sans-serif;
  overflow:hidden;
 }
 
-/* 画面 */
-#titleScreen,#result,#ranking{
- position:fixed;
- width:100%;
- height:100%;
- z-index:10;
-}
-#game{z-index:1;}
-
 /* タイトル */
 #titleScreen{
- display:flex;
- flex-direction:column;
- justify-content:center;
- align-items:center;
+ position:fixed;width:100%;height:100%;
+ display:flex;flex-direction:column;
+ justify-content:center;align-items:center;
+}
+#title{
+ font-size:64px;
+ color:gold;
 }
 .menuBtn{
  width:260px;padding:16px;margin:10px;
  font-size:22px;
- background:linear-gradient(#fff4cc,gold);
+ background:gold;
  border:none;border-radius:10px;
- cursor:pointer;
 }
 
 /* ゲーム */
@@ -46,36 +37,33 @@ body{
  transform:translate(-50%,-50%);
  width:420px;height:650px;
  display:none;
+ background:#111;
 }
 
-/* レーン */
-.lane{position:absolute;width:140px;height:100%;}
-#lane1{left:0;background:url("lane_red.png") center/cover no-repeat;}
-#lane2{left:140px;background:url("lane_blue.png") center/cover no-repeat;}
-#lane3{left:280px;background:url("lane_green.png") center/cover no-repeat;}
+.hit{
+ position:absolute;
+ top:560px;
+ width:90px;height:90px;
+ border-radius:50%;
+ border:3px solid white;
+ transform:translate(-50%,-50%);
+}
+.red{left:70px;}
+.blue{left:210px;}
+.green{left:350px;}
 
-/* ノーツ */
-.note{position:absolute;width:70px;transform:translate(-50%,-50%);}
-
-/* UI */
-#ui{position:absolute;left:20px;top:40px;display:none;z-index:5;}
-#score{font-size:30px;color:gold;}
-#combo{font-size:50px;color:orange;}
-
-/* リザルト */
-#result{display:none;text-align:center;padding-top:120px;}
-
-/* ランキング */
-#ranking{display:none;text-align:center;padding-top:80px;background:black;}
-.rankRow{font-size:28px;}
-.rank1{color:gold;font-size:32px;}
+#ui{
+ position:absolute;
+ left:20px;top:40px;
+ display:none;
+}
 </style>
 </head>
 
 <body>
 
 <div id="titleScreen">
- <h1>無限そば道</h1>
+ <div id="title">無限そば道</div>
  <button class="menuBtn" onclick="startGame(30)">30秒</button>
  <button class="menuBtn" onclick="startGame(60)">60秒</button>
  <button class="menuBtn" onclick="startGame(120)">120秒</button>
@@ -83,131 +71,66 @@ body{
  <button class="menuBtn" onclick="showRanking()">ランキング</button>
 </div>
 
-<div id="ui">
- <div>得点<div id="score">0</div></div>
- <div>連打<div id="combo">0</div></div>
-</div>
-
 <div id="game">
- <div id="lane1" class="lane"></div>
- <div id="lane2" class="lane"></div>
- <div id="lane3" class="lane"></div>
+ <div class="hit red"></div>
+ <div class="hit blue"></div>
+ <div class="hit green"></div>
 </div>
 
-<div id="result">
- <h1>結果</h1>
- <div id="finalScore"></div>
+<div id="ui">
+ スコア: <span id="score">0</span>
 </div>
-
-<div id="ranking">
- <div id="rankList"></div>
- <button onclick="location.reload()">戻る</button>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
-/* ===== 要素取得（超重要） ===== */
-const titleScreen=document.getElementById("titleScreen");
-const result=document.getElementById("result");
-const ranking=document.getElementById("ranking");
-const rankList=document.getElementById("rankList");
-const finalScore=document.getElementById("finalScore");
-const ui=document.getElementById("ui");
-const game=document.getElementById("game");
-const scoreEl=document.getElementById("score");
-const comboEl=document.getElementById("combo");
+// ===== ここ重要 =====
 
-/* ===== Supabase ===== */
-const SUPABASE_URL="ここにURL";
-const SUPABASE_KEY="ここにキー";
-const supabase=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
-
-/* ===== 変数 ===== */
-let score=0,combo=0,maxCombo=0;
+// 変数
 let running=false;
+let score=0;
 
-/* ===== 開始 ===== */
+// スタート
 function startGame(sec){
+ console.log("startGame動いた"); // ←確認用
  startCommon();
  setTimeout(endGame,sec*1000);
 }
+
 function startInfinite(){
+ console.log("startInfinite動いた");
  startCommon();
 }
+
+// 共通
 function startCommon(){
- score=0;combo=0;maxCombo=0;
-
- titleScreen.style.display="none";
- result.style.display="none";
- ranking.style.display="none";
-
- game.style.display="block";
- ui.style.display="block";
+ document.getElementById("titleScreen").style.display="none";
+ document.getElementById("game").style.display="block";
+ document.getElementById("ui").style.display="block";
 
  running=true;
- loop();
+ score=0;
 }
 
-/* ===== ダミーゲーム ===== */
-function loop(){
- if(!running)return;
- score+=1;
- combo+=1;
- if(combo>maxCombo)maxCombo=combo;
-
- scoreEl.innerText=score;
- comboEl.innerText=combo;
-
- requestAnimationFrame(loop);
-}
-
-/* ===== 終了 ===== */
+// 終了
 function endGame(){
  running=false;
-
- game.style.display="none";
- ui.style.display="none";
- result.style.display="block";
-
- finalScore.innerHTML=`
- スコア:${score}<br>
- 最大連打:${maxCombo}<br>
- <button onclick="submitScore()">登録</button>
- <button onclick="location.reload()">戻る</button>
- `;
+ alert("終了 スコア:"+score);
+ location.reload();
 }
 
-/* ===== 送信 ===== */
-async function submitScore(){
- let name=prompt("名前入力");
- if(!name)return;
-
- await supabase.from("scores").insert([
-  {name:name,score:score}
- ]);
-
- alert("登録完了！");
+// ランキング
+function showRanking(){
+ alert("ランキング（まだ未実装）");
 }
 
-/* ===== ランキング ===== */
-async function showRanking(){
- titleScreen.style.display="none";
- result.style.display="none";
- ranking.style.display="block";
+// キー操作
+document.addEventListener("keydown",e=>{
+ if(!running)return;
 
- let {data}=await supabase
-  .from("scores")
-  .select("*")
-  .order("score",{ascending:false})
-  .limit(5);
-
- rankList.innerHTML=data.map((d,i)=>`
-  <div class="${i===0?"rank1":""}">
-   ${i+1}位 ${d.name} ${d.score}
-  </div>
- `).join("");
-}
+ if(e.key==="a"||e.key==="s"||e.key==="l"){
+  score+=100;
+  document.getElementById("score").innerText=score;
+ }
+});
 </script>
 
 </body>
